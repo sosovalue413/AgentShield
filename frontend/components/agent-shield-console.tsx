@@ -742,7 +742,7 @@ export function AgentShieldConsole() {
                 <div className="flex items-center justify-between border-b-2 border-foreground px-4 py-3"><h2 className="text-xs font-bold uppercase tracking-[0.14em]">Decision stream</h2><button onClick={() => setTab("activity")} className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground">View all <ArrowRight className="ml-1 inline" size={12} /></button></div>
                 <div className="divide-y divide-border">
                   {activity.slice(0, 5).map((item) => <ActivityRow key={item.id} item={item} />)}
-                  {!activity.length && <EmptyState title="No decisions yet" body="Run the guard on your first agent action to start an auditable trail." action="Run guard" onClick={() => setTab("guard")} />}
+                  {!activity.length && <EmptyState title="No decisions yet" body="Run a check to record one." action="Run guard" onClick={() => setTab("guard")} />}
                 </div>
               </section>
               <section className="min-w-0 border-2 border-foreground bg-foreground p-5 text-background">
@@ -812,7 +812,7 @@ export function AgentShieldConsole() {
         )}
       </main>
 
-      <footer className="border-t-2 border-foreground px-4 py-6 lg:px-10"><div className="mx-auto flex max-w-[1400px] flex-col gap-3 text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>AgentShield / built for 0G builders</span><div className="flex flex-wrap gap-4">{REGISTRY_ADDRESS && <a href={`${TESTNET.explorer}/address/${REGISTRY_ADDRESS}`} target="_blank" rel="noreferrer" className="hover:text-foreground">Registry <ExternalLink className="ml-1 inline" size={11} /></a>}<a href={TESTNET.explorer} target="_blank" rel="noreferrer" className="hover:text-foreground">ChainScan <ExternalLink className="ml-1 inline" size={11} /></a><a href={TESTNET.faucet} target="_blank" rel="noreferrer" className="hover:text-foreground">Testnet faucet <ExternalLink className="ml-1 inline" size={11} /></a></div></div></footer>
+      <footer className="border-t-2 border-foreground px-4 py-6 lg:px-10"><div className="mx-auto flex max-w-[1400px] flex-col gap-3 text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>AgentShield / 0G Galileo</span><div className="flex flex-wrap gap-4">{REGISTRY_ADDRESS && <a href={`${TESTNET.explorer}/address/${REGISTRY_ADDRESS}`} target="_blank" rel="noreferrer" className="hover:text-foreground">Registry <ExternalLink className="ml-1 inline" size={11} /></a>}<a href={TESTNET.explorer} target="_blank" rel="noreferrer" className="hover:text-foreground">ChainScan <ExternalLink className="ml-1 inline" size={11} /></a><a href={TESTNET.faucet} target="_blank" rel="noreferrer" className="hover:text-foreground">Testnet faucet <ExternalLink className="ml-1 inline" size={11} /></a></div></div></footer>
     </div>
   )
 }
