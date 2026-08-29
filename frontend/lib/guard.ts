@@ -149,7 +149,8 @@ export function evaluateGuard(form: GuardForm, agent: AgentPolicyInput): GuardEv
     risk += 30
     reasons.push("Protocol is not on the agent allowlist")
   }
-  if (/ignore (all|any)|system override|previous instructions|transfer all|bypass|reveal secret/i.test(form.instruction)) {
+  const injectionPattern = /(?:ignore|disregard|override)\s+(?:all|any|the|these|agentshield|security|policy|guard|rules|instructions)|system\s+override|previous\s+instructions|transfer\s+all|bypass|reveal\s+(?:the\s+)?(?:secret|private\s+key|seed\s+phrase)|export\s+(?:the\s+)?private\s+key/i
+  if (injectionPattern.test(form.instruction.replace(/\s+/g, " "))) {
     risk += 70
     forceBlock = true
     reasons.push("Prompt injection pattern detected")
