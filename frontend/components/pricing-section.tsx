@@ -101,7 +101,7 @@ const TIERS: Tier[] = [
       { text: "Maximum transaction limit", included: true },
       { text: "Daily budget enforcement", included: true },
       { text: "Protocol allowlist support", included: true },
-      { text: "Decision events onchain", included: true },
+      { text: "Local decision history", included: true },
       { text: "Production mainnet deployment", included: false },
     ],
     cta: "START BUILDING",
@@ -270,7 +270,7 @@ export function PricingSection() {
         className="flex items-center gap-4 mb-8"
       >
         <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
-          {"// SECTION: DEPLOYMENT_MODES"}
+          PROTECTION MODES
         </span>
         <div className="flex-1 border-t border-border" />
         <BlinkDot />

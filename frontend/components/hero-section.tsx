@@ -29,7 +29,7 @@ export function HeroSection() {
           <WorkflowDiagram />
         </motion.div>
 
-        <motion.h1
+        <motion.div
           initial={{ opacity: 0, y: 30, filter: "blur(8px)" }}
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
           transition={{ duration: 0.7, delay: 0.25, ease }}
@@ -37,7 +37,7 @@ export function HeroSection() {
           aria-hidden="true"
         >
           SAFELY.
-        </motion.h1>
+        </motion.div>
 
         <motion.p
           initial={{ opacity: 0, y: 12 }}

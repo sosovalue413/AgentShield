@@ -45,7 +45,7 @@ export function GlitchMarquee() {
         className="flex items-center gap-4 mb-8"
       >
         <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
-          {"// MODULES: 0G_SECURITY_STACK"}
+          0G SECURITY STACK
         </span>
         <div className="flex-1 border-t border-border" />
         <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground">008</span>
