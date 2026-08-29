@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "compile": "node scripts/compile.mjs",
-    "deploy:testnet": "node scripts/deploy.mjs"
+    "deploy:testnet": "node scripts/deploy.mjs",
+    "test": "node --test test/AgentShieldRegistry.test.mjs"
   },
   "devDependencies": {
     "ethers": "^6.15.0",
+    "ganache": "^7.9.2",
     "solc": "^0.8.30"
   }
 }
