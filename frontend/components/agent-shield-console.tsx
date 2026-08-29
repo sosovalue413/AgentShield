@@ -649,12 +649,12 @@ export function AgentShieldConsole() {
       return
     }
 
-    setSyncingPolicyId(agent.id)
     if (!agent.protocols.length) {
       setWalletMessage("Add at least one approved protocol address before syncing.")
       return
     }
 
+    setSyncingPolicyId(agent.id)
     setWalletMessage("Confirm the policy update and protocol permissions in your wallet.")
     try {
       const provider = new BrowserProvider(window.ethereum)
