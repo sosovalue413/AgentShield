@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
-import { BrowserProvider, Contract, JsonRpcProvider, ZeroAddress, formatUnits, getAddress, id, isAddress, keccak256, parseUnits, toUtf8Bytes } from "ethers"
+import { BrowserProvider, Contract, JsonRpcProvider, ZeroAddress, formatUnits, getAddress, id, isAddress, keccak256, parseUnits, toUtf8Bytes, verifyMessage } from "ethers"
 import { encodeErc20Call, evaluateGuard, normalizeProtocolAddresses, parseNativeValue, parseTokenValue, type Decision, type GuardForm } from "@/lib/guard"
 import {
   Activity,
@@ -169,6 +169,7 @@ export function AgentShieldConsole() {
   const [copied, setCopied] = useState(false)
   const [registeringAgentId, setRegisteringAgentId] = useState<string | null>(null)
   const [syncingPolicyId, setSyncingPolicyId] = useState<string | null>(null)
+  const [approvingReview, setApprovingReview] = useState(false)
   const [registeredAgentIds, setRegisteredAgentIds] = useState<string[]>([])
   const [showAgentForm, setShowAgentForm] = useState(false)
   const [agentDraft, setAgentDraft] = useState({ name: "", purpose: "", maxTransaction: "25", dailyBudget: "100" })
@@ -381,10 +382,37 @@ export function AgentShieldConsole() {
     setTab("guard")
   }
 
-  const approveReview = () => {
+  const approveReview = async () => {
     if (!guardResult || !activeAgent) return
-    setGuardResult({ ...guardResult, decision: "ALLOWED", risk: Math.min(guardResult.risk, 34) })
-    setActivity((current) => current.map((item) => item.id === guardResult.activityId ? { ...item, decision: "ALLOWED", risk: Math.min(item.risk, 34), reasons: [...item.reasons, "Approved once by wallet owner"] } : item))
+    if (!window.ethereum || !walletAddress) {
+      setWalletMessage("Connect the agent owner wallet to approve this action.")
+      return
+    }
+    if (network !== TESTNET.chainId) {
+      setWalletMessage("Switch to 0G Galileo Testnet before approving this action.")
+      return
+    }
+    setApprovingReview(true)
+    try {
+      const provider = new BrowserProvider(window.ethereum)
+      const signer = await provider.getSigner()
+      const message = [
+        "AgentShield one-time approval",
+        `Chain: ${parseInt(TESTNET.chainId, 16)}`,
+        `Agent: ${activeAgent.id}`,
+        `Decision: ${guardResult.activityId}`,
+        `Action hash: ${keccak256(toUtf8Bytes(JSON.stringify(guardResult.input)))}`,
+      ].join("\n")
+      const signature = await signer.signMessage(message)
+      if (verifyMessage(message, signature).toLowerCase() !== walletAddress.toLowerCase()) throw new Error("The approval signature does not match the connected wallet.")
+      setGuardResult({ ...guardResult, decision: "ALLOWED", risk: Math.min(guardResult.risk, 34) })
+      setActivity((current) => current.map((item) => item.id === guardResult.activityId ? { ...item, decision: "ALLOWED", risk: Math.min(item.risk, 34), reasons: [...item.reasons, "Approved once by wallet owner"], approvalSignature: signature } : item))
+      setWalletMessage("One-time wallet approval verified.")
+    } catch (error) {
+      setWalletMessage(error instanceof Error ? error.message : "The wallet approval was cancelled.")
+    } finally {
+      setApprovingReview(false)
+    }
   }
 
   const executeTransaction = async () => {
@@ -400,6 +428,14 @@ export function AgentShieldConsole() {
     }
     if (network !== TESTNET.chainId) {
       setWalletMessage("Switch to 0G Galileo Testnet before executing.")
+      return
+    }
+    if (!REGISTRY_ADDRESS || !registeredAgentIds.includes(activeAgent.id)) {
+      setWalletMessage("Register this agent on 0G before executing an action.")
+      return
+    }
+    if (!activeAgent.onchainPolicySynced) {
+      setWalletMessage("Sync this agent policy and protocol allowlist to 0G before executing.")
       return
     }
     try {
@@ -434,26 +470,61 @@ export function AgentShieldConsole() {
         return
       }
 
+      const protocol = getAddress(input.protocol.trim())
+      const policyAmount = parseTokenValue(input.amount || "0", 6)
+      const provider = new BrowserProvider(window.ethereum)
+      const signer = await provider.getSigner()
+      const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, signer)
+      const allowedOnchain = await registry.previewDecision(id(activeAgent.id), protocol, policyAmount, guardResult.risk)
+      if (!allowedOnchain) {
+        setWalletMessage("The onchain policy rejected this action. Refresh the policy before trying again.")
+        return
+      }
+
+      const reportHash = keccak256(toUtf8Bytes(JSON.stringify({
+        agentId: activeAgent.id,
+        activityId: guardResult.activityId,
+        input,
+        risk: guardResult.risk,
+        decision: guardResult.decision,
+      })))
+      setWalletMessage("Preflight passed. Confirm the onchain security decision in your wallet.")
+      const decisionTransaction = await registry.recordDecision(
+        id(`${activeAgent.id}:${guardResult.activityId}`),
+        id(activeAgent.id),
+        getAddress(destination),
+        protocol,
+        policyAmount,
+        guardResult.risk,
+        reportHash,
+      )
+      const decisionReceipt = await decisionTransaction.wait()
+      if (!decisionReceipt || decisionReceipt.status !== 1) throw new Error("The onchain decision transaction did not confirm.")
+      setActivity((current) => current.map((item) => item.id === guardResult.activityId ? { ...item, decisionTxHash: decisionTransaction.hash, txStatus: "DECISION_RECORDED" } : item))
+      setWalletMessage("Decision recorded on 0G. Confirm the guarded transaction in your wallet.")
+
       const txHash = String(await window.ethereum.request({
         method: "eth_sendTransaction",
         params: [transaction],
       }))
-      setActivity((current) => current.map((item) => item.id === guardResult.activityId ? { ...item, decision: "ALLOWED", txHash } : item))
+      setActivity((current) => current.map((item) => item.id === guardResult.activityId ? { ...item, decision: "ALLOWED", txHash, txStatus: "SUBMITTED" } : item))
       setWalletMessage("Preflight passed and the transaction was submitted. Waiting for 0G confirmation.")
 
       try {
-        const provider = new BrowserProvider(window.ethereum)
         const receipt = await provider.waitForTransaction(txHash, 1, 60_000)
         if (receipt?.status === 1) {
           const spentAmount = Number(input.amount) || 0
           setAgents((current) => current.map((agent) => agent.id === activeAgentId
             ? { ...agent, usedToday: Math.min(agent.dailyBudget, agent.usedToday + spentAmount), spendingDay: currentSpendingDay() }
             : agent))
-          setWalletMessage("Transaction confirmed on 0G and the local budget was updated.")
+          setActivity((current) => current.map((item) => item.id === guardResult.activityId ? { ...item, txStatus: "CONFIRMED" } : item))
+          setWalletMessage("Transaction confirmed on 0G. The onchain and local budgets are updated.")
         } else if (receipt?.status === 0) {
-          setWalletMessage("The transaction reverted on 0G. No local budget was consumed.")
+          setActivity((current) => current.map((item) => item.id === guardResult.activityId ? { ...item, txStatus: "REVERTED" } : item))
+          setWalletMessage("The guarded transaction reverted. Its security decision remains recorded onchain.")
         }
       } catch {
+        setActivity((current) => current.map((item) => item.id === guardResult.activityId ? { ...item, txStatus: "UNKNOWN" } : item))
         setWalletMessage("Transaction submitted to 0G. Confirmation is taking longer than expected; follow it on ChainScan.")
       }
     } catch (error) {
