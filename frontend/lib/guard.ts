@@ -68,6 +68,7 @@ export function evaluateGuard(form: GuardForm, agent: AgentPolicyInput): GuardEv
   const reasons: string[] = []
   let risk = 6
   let forceBlock = false
+  let requiresReview = false
 
   if (!agent.active) {
     risk += 100
@@ -111,14 +112,17 @@ export function evaluateGuard(form: GuardForm, agent: AgentPolicyInput): GuardEv
   }
   if (amount > agent.maxTransaction) {
     risk += 28
+    forceBlock = true
     reasons.push(`Amount exceeds ${agent.name}'s ${agent.maxTransaction} ${form.asset} limit`)
   }
   if (amount > Math.max(agent.dailyBudget - agent.usedToday, 0)) {
     risk += 18
+    forceBlock = true
     reasons.push("Daily budget would be exceeded")
   }
   if (form.action === "approve") {
     risk += 20
+    requiresReview = true
     reasons.push("Token approval requires an explicit review")
     if (form.asset === "0G") {
       risk += 80
@@ -156,7 +160,7 @@ export function evaluateGuard(form: GuardForm, agent: AgentPolicyInput): GuardEv
 
   risk = Math.min(100, Math.max(0, risk))
   if (forceBlock) risk = Math.max(risk, 75)
-  const decision: Decision = forceBlock || risk >= 70 ? "BLOCKED" : risk >= 35 ? "REVIEW" : "ALLOWED"
+  const decision: Decision = forceBlock || risk >= 70 ? "BLOCKED" : requiresReview || risk >= 35 ? "REVIEW" : "ALLOWED"
   if (reasons.length === 0) reasons.push("Within policy")
   return { risk, decision, reasons }
 }
