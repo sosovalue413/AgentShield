@@ -93,12 +93,6 @@ Agent instruction + transaction
 - Security headers, zero seeded production data, and migration of legacy protocol labels to validated addresses.
 - Responsive, keyboard-accessible web interface.
 
-### Deliberately not exposed yet
-
-- Public 0G Compute inference. The Router credential is configured server-side, but a public metered endpoint needs authentication and quotas first.
-- Durable cloud accounts and multi-device sync.
-- 0G Storage report anchoring.
-- Mainnet custody enforcement.
 
 ## Architecture and trust boundaries
 
