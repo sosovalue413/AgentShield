@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
-import { BrowserProvider, Contract, JsonRpcProvider, ZeroAddress, id, parseUnits } from "ethers"
+import { BrowserProvider, Contract, JsonRpcProvider, ZeroAddress, formatUnits, getAddress, id, isAddress, keccak256, parseUnits, toUtf8Bytes } from "ethers"
+import { encodeErc20Call, evaluateGuard, normalizeProtocolAddresses, parseNativeValue, parseTokenValue, type Decision, type GuardForm } from "@/lib/guard"
 import {
   Activity,
   ArrowLeft,
@@ -24,7 +25,6 @@ import {
 } from "lucide-react"
 
 type Tab = "overview" | "agents" | "guard" | "policies" | "activity"
-type Decision = "ALLOWED" | "REVIEW" | "BLOCKED"
 
 type Agent = {
   id: string
@@ -37,8 +37,10 @@ type Agent = {
   usedToday: number
   spendingDay: string
   protocols: string[]
+  syncedProtocols: string[]
   status: "PROTECTED" | "REVIEW"
   active: boolean
+  onchainPolicySynced: boolean
 }
 
 type ActivityItem = {
@@ -53,6 +55,9 @@ type ActivityItem = {
   decision: Decision
   reasons: string[]
   txHash?: string
+  decisionTxHash?: string
+  txStatus?: "LOCAL" | "DECISION_RECORDED" | "SUBMITTED" | "CONFIRMED" | "REVERTED" | "UNKNOWN"
+  approvalSignature?: string
 }
 
 type GuardResult = {
@@ -61,19 +66,6 @@ type GuardResult = {
   decision: Decision
   reasons: string[]
   input: GuardForm
-}
-
-type GuardForm = {
-  amount: string
-  asset: string
-  destination: string
-  action: "transfer" | "approve" | "contract"
-  instruction: string
-  protocol: string
-  tokenContract: string
-  tokenDecimals: string
-  calldata: string
-  unlimitedApproval: boolean
 }
 
 type EthereumProvider = {
@@ -93,6 +85,10 @@ const REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_AGENTSHIELD_REGISTRY?.trim()
 const REGISTRY_ABI = [
   "function registerAgent(bytes32 agentId, uint128 maxTransaction, uint128 dailyBudget)",
   "function updatePolicy(bytes32 agentId, uint128 maxTransaction, uint128 dailyBudget, bool active)",
+  "function setProtocolAllowed(bytes32 agentId, address protocol, bool allowed)",
+  "function previewDecision(bytes32 agentId, address protocol, uint256 amount, uint8 risk) view returns (bool allowed)",
+  "function recordDecision(bytes32 decisionId, bytes32 agentId, address destination, address protocol, uint256 amount, uint8 risk, bytes32 reportHash) returns (bool allowed)",
+  "function allowedProtocols(bytes32 agentId, address protocol) view returns (bool allowed)",
   "function policies(bytes32 agentId) view returns (address owner, uint128 maxTransaction, uint128 dailyBudget, uint128 spentToday, uint64 spendingDay, bool active)",
 ] as const
 const TESTNET = {
@@ -109,12 +105,12 @@ const INITIAL_ACTIVITY: ActivityItem[] = []
 const currentSpendingDay = () => new Date().toISOString().slice(0, 10)
 
 const EMPTY_GUARD: GuardForm = {
-  amount: "5",
+  amount: "",
   asset: "0G",
   destination: "",
   action: "transfer",
-  instruction: "Purchase the verified climate dataset for the next research run.",
-  protocol: "DataMarket",
+  instruction: "",
+  protocol: "",
   tokenContract: "",
   tokenDecimals: "6",
   calldata: "0x",
@@ -128,112 +124,10 @@ function shortAddress(value: string) {
   return `${value.slice(0, 6)}…${value.slice(-4)}`
 }
 
-function parseTokenValue(value: string, decimals: number) {
-  const normalized = value.trim()
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) throw new Error("Token decimals must be between 0 and 36.")
-  const amountPattern = new RegExp(`^\\d+(\\.\\d{0,${decimals}})?$`)
-  if (!amountPattern.test(normalized)) throw new Error(`Enter a valid amount with at most ${decimals} decimal places.`)
-  const [whole, fraction = ""] = normalized.split(".")
-  const units = BigInt(whole) * BigInt(`1${"0".repeat(decimals)}`) + BigInt(fraction.padEnd(decimals, "0") || "0")
-  return units
-}
-
-function parseNativeValue(value: string) {
-  return `0x${parseTokenValue(value, 18).toString(16)}`
-}
-
-function encodeErc20Call(action: "transfer" | "approve", destination: string, amount: bigint) {
-  const selector = action === "approve" ? "095ea7b3" : "a9059cbb"
-  const addressWord = destination.toLowerCase().replace(/^0x/, "").padStart(64, "0")
-  const amountWord = amount.toString(16).padStart(64, "0")
-  return `0x${selector}${addressWord}${amountWord}`
-}
-
 function statusTone(decision: Decision) {
   if (decision === "ALLOWED") return "text-[#3f6212] border-[#3f6212]"
   if (decision === "REVIEW") return "text-[#a16207] border-[#a16207]"
   return "text-[#b91c1c] border-[#b91c1c]"
-}
-
-function guardTransaction(form: GuardForm, agent: Agent): Omit<GuardResult, "input" | "activityId"> {
-  const amount = Number(form.amount) || 0
-  const reasons: string[] = []
-  let risk = 6
-  let forceBlock = false
-
-  if (!agent.active) {
-    risk += 100
-    forceBlock = true
-    reasons.push("Agent policy is paused")
-  }
-
-  if (!form.destination || !/^0x[a-fA-F0-9]{40}$/.test(form.destination.trim())) {
-    risk += 80
-    forceBlock = true
-    reasons.push("Destination is not a valid EVM address")
-  }
-  if (form.asset !== "0G" && form.action !== "contract" && !/^0x[a-fA-F0-9]{40}$/.test(form.tokenContract.trim())) {
-    risk += 80
-    forceBlock = true
-    reasons.push("Token contract is not a valid EVM address")
-  }
-  const decimals = Number(form.tokenDecimals)
-  if (form.asset !== "0G" && form.action !== "contract" && (!Number.isInteger(decimals) || decimals < 0 || decimals > 36)) {
-    risk += 60
-    forceBlock = true
-    reasons.push("Token decimals must be between 0 and 36")
-  }
-  if (form.action === "contract" && !/^0x(?:[a-fA-F0-9]{2})*$/.test(form.calldata.trim())) {
-    risk += 60
-    forceBlock = true
-    reasons.push("Contract calldata must be valid hex bytes")
-  }
-  if (amount <= 0 && form.action === "transfer") {
-    risk += 50
-    forceBlock = true
-    reasons.push("Transfer amount must be greater than zero")
-  }
-  if (amount > agent.maxTransaction) {
-    risk += 28
-    reasons.push(`Amount exceeds ${agent.name}'s ${agent.maxTransaction} ${form.asset} limit`)
-  }
-  if (amount > Math.max(agent.dailyBudget - agent.usedToday, 0)) {
-    risk += 18
-    reasons.push("Daily budget would be exceeded")
-  }
-  if (form.action === "approve") {
-    risk += 20
-    reasons.push("Token approval requires an explicit review")
-    if (form.asset === "0G") {
-      risk += 80
-      forceBlock = true
-      reasons.push("Native 0G does not support token approvals")
-    }
-    if (form.unlimitedApproval || /unlimited|max|infinite|0x[fF]{6,}/i.test(form.instruction)) {
-      risk += 24
-      forceBlock = true
-      reasons.push("Unlimited approval pattern detected")
-    }
-  }
-  if (!agent.protocols.includes(form.protocol)) {
-    risk += 30
-    reasons.push("Protocol is not on the agent allowlist")
-  }
-  if (/ignore (all|any)|system override|previous instructions|transfer all|bypass|reveal secret/i.test(form.instruction)) {
-    risk += 70
-    forceBlock = true
-    reasons.push("Prompt injection pattern detected")
-  }
-  if (agent.protocols.includes(form.protocol)) {
-    risk -= 10
-    reasons.push("Known protocol")
-  }
-
-  risk = Math.min(100, Math.max(0, risk))
-  if (forceBlock) risk = Math.max(risk, 75)
-  const decision: Decision = forceBlock || risk >= 70 ? "BLOCKED" : risk >= 35 ? "REVIEW" : "ALLOWED"
-  if (reasons.length === 0) reasons.push("Within policy", "Normal agent behavior")
-  return { risk, decision, reasons }
 }
 
 function Stat({ label, value, detail }: { label: string; value: string; detail?: string }) {
