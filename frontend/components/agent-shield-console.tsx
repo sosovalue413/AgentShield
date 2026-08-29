@@ -278,7 +278,7 @@ export function AgentShieldConsole() {
             dailyBudget,
             usedToday,
             active: Boolean(policy.active),
-            protocolsSynced: protocolChecks.every(Boolean),
+            protocolsSynced: agent.protocols.length > 0 && protocolChecks.every(Boolean),
             limitsMatch,
           }
         }))
@@ -560,9 +560,11 @@ export function AgentShieldConsole() {
       dailyBudget,
       usedToday: 0,
       spendingDay: currentSpendingDay(),
-      protocols: ["0G Pay"],
+      protocols: [],
+      syncedProtocols: [],
       status: "PROTECTED",
       active: true,
+      onchainPolicySynced: false,
     }
     setAgents((current) => [...current, newAgent])
     setActiveAgentId(newAgent.id)
@@ -600,8 +602,8 @@ export function AgentShieldConsole() {
       setWalletMessage("Agent registration submitted. Waiting for 0G confirmation.")
       await transaction.wait()
       setRegisteredAgentIds((current) => current.includes(agent.id) ? current : [...current, agent.id])
-      setAgents((current) => current.map((entry) => entry.id === agent.id ? { ...entry, wallet: shortAddress(walletAddress) } : entry))
-      setWalletMessage(`“${agent.name}” is registered in the 0G AgentShield registry.`)
+      setAgents((current) => current.map((entry) => entry.id === agent.id ? { ...entry, wallet: shortAddress(walletAddress), onchainPolicySynced: false } : entry))
+      setWalletMessage(`“${agent.name}” is registered. Add protocol addresses and sync its policy before execution.`)
     } catch (error) {
       const message = error instanceof Error ? error.message : "The registry transaction failed."
       setWalletMessage(message.includes("AgentAlreadyRegistered") ? "This agent ID is already registered by a wallet." : message)
@@ -615,8 +617,19 @@ export function AgentShieldConsole() {
       setWalletMessage("Policy not saved. Daily budget must cover at least one maximum transaction.")
       return false
     }
+    let normalizedProtocols: string[]
+    try {
+      normalizedProtocols = normalizeProtocolAddresses(protocols)
+    } catch (error) {
+      setWalletMessage(error instanceof Error ? error.message : "Protocol addresses are invalid.")
+      return false
+    }
+    if (!normalizedProtocols.length) {
+      setWalletMessage("Add at least one approved protocol address before saving the policy.")
+      return false
+    }
     setAgents((current) => current.map((agent) => agent.id === agentId
-      ? { ...agent, maxTransaction, dailyBudget, active, protocols, status: active ? "PROTECTED" : "REVIEW" }
+      ? { ...agent, maxTransaction, dailyBudget, active, protocols: normalizedProtocols, status: active ? "PROTECTED" : "REVIEW", onchainPolicySynced: false }
       : agent))
     setWalletMessage("Local policy saved.")
     return true
@@ -637,7 +650,12 @@ export function AgentShieldConsole() {
     }
 
     setSyncingPolicyId(agent.id)
-    setWalletMessage("Confirm the policy update in your wallet.")
+    if (!agent.protocols.length) {
+      setWalletMessage("Add at least one approved protocol address before syncing.")
+      return
+    }
+
+    setWalletMessage("Confirm the policy update and protocol permissions in your wallet.")
     try {
       const provider = new BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
@@ -650,7 +668,16 @@ export function AgentShieldConsole() {
       )
       setWalletMessage("Policy update submitted. Waiting for 0G confirmation.")
       await transaction.wait()
-      setWalletMessage(`“${agent.name}” policy is synchronized with the 0G registry.`)
+      const currentProtocols = new Set(agent.protocols.map((protocol) => protocol.toLowerCase()))
+      const permissions = [...new Set([...agent.syncedProtocols, ...agent.protocols])]
+      for (const protocol of permissions) {
+        const shouldAllow = currentProtocols.has(protocol.toLowerCase())
+        const permissionTransaction = await registry.setProtocolAllowed(id(agent.id), protocol, shouldAllow)
+        setWalletMessage(`Updating protocol permissions on 0G (${permissions.indexOf(protocol) + 1}/${permissions.length}).`)
+        await permissionTransaction.wait()
+      }
+      setAgents((current) => current.map((entry) => entry.id === agent.id ? { ...entry, syncedProtocols: [...agent.protocols], onchainPolicySynced: true } : entry))
+      setWalletMessage(`“${agent.name}” policy and protocol permissions are synchronized with 0G.`)
     } catch (error) {
       setWalletMessage(error instanceof Error ? error.message : "The policy update failed.")
     } finally {
