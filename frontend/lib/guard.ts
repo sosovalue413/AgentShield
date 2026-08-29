@@ -48,7 +48,8 @@ export function parseTokenValue(value: string, decimals: number) {
   const amountPattern = new RegExp(`^\\d+(\\.\\d{0,${decimals}})?$`)
   if (!amountPattern.test(normalized)) throw new Error(`Enter a valid amount with at most ${decimals} decimal places.`)
   const [whole, fraction = ""] = normalized.split(".")
-  return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, "0") || "0")
+  const unit = BigInt(`1${"0".repeat(decimals)}`)
+  return BigInt(whole) * unit + BigInt(fraction.padEnd(decimals, "0") || "0")
 }
 
 export function parseNativeValue(value: string) {

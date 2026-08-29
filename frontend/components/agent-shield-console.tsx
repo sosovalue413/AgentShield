@@ -183,7 +183,7 @@ export function AgentShieldConsole() {
   const [approvingReview, setApprovingReview] = useState(false)
   const [registeredAgentIds, setRegisteredAgentIds] = useState<string[]>([])
   const [showAgentForm, setShowAgentForm] = useState(false)
-  const [agentDraft, setAgentDraft] = useState({ name: "", purpose: "", maxTransaction: "25", dailyBudget: "100" })
+  const [agentDraft, setAgentDraft] = useState({ name: "", purpose: "", maxTransaction: "", dailyBudget: "" })
   const [agentFormError, setAgentFormError] = useState("")
   const [hydrated, setHydrated] = useState(false)
 
@@ -199,14 +199,23 @@ export function AgentShieldConsole() {
         const saved = JSON.parse(raw) as { agents?: Agent[]; activity?: ActivityItem[] }
         if (saved.agents?.length) {
           const today = currentSpendingDay()
-          const migratedAgents = saved.agents.map((agent) => ({
-            ...agent,
-            active: agent.active ?? true,
-            spendingDay: agent.spendingDay ?? today,
-            usedToday: !agent.spendingDay || agent.spendingDay === today ? agent.usedToday : 0,
-            syncedProtocols: agent.syncedProtocols ?? [],
-            onchainPolicySynced: agent.onchainPolicySynced ?? false,
-          }))
+          const migratedAgents = saved.agents.map((agent) => {
+            const protocols = Array.isArray(agent.protocols)
+              ? [...new Set(agent.protocols.filter((protocol) => isAddress(protocol)).map((protocol) => getAddress(protocol)))]
+              : []
+            const syncedProtocols = Array.isArray(agent.syncedProtocols)
+              ? [...new Set(agent.syncedProtocols.filter((protocol) => isAddress(protocol)).map((protocol) => getAddress(protocol)))]
+              : []
+            return {
+              ...agent,
+              active: agent.active ?? true,
+              spendingDay: agent.spendingDay ?? today,
+              usedToday: !agent.spendingDay || agent.spendingDay === today ? agent.usedToday : 0,
+              protocols,
+              syncedProtocols,
+              onchainPolicySynced: agent.onchainPolicySynced ?? false,
+            }
+          })
           setAgents(migratedAgents)
           setActiveAgentId(migratedAgents[0].id)
         }
@@ -427,7 +436,7 @@ export function AgentShieldConsole() {
   }
 
   const executeTransaction = async () => {
-    if (!guardResult || guardResult.decision === "BLOCKED") return
+    if (!guardResult || guardResult.decision === "BLOCKED" || !activeAgent) return
     const destination = guardResult.input.destination.trim()
     if (!/^0x[a-fA-F0-9]{40}$/.test(destination)) {
       setWalletMessage("Add a valid destination address before executing.")
@@ -525,7 +534,7 @@ export function AgentShieldConsole() {
         const receipt = await provider.waitForTransaction(txHash, 1, 60_000)
         if (receipt?.status === 1) {
           const spentAmount = Number(input.amount) || 0
-          setAgents((current) => current.map((agent) => agent.id === activeAgentId
+          setAgents((current) => current.map((agent) => agent.id === activeAgent.id
             ? { ...agent, usedToday: Math.min(agent.dailyBudget, agent.usedToday + spentAmount), spendingDay: currentSpendingDay() }
             : agent))
           setActivity((current) => current.map((item) => item.id === guardResult.activityId ? { ...item, txStatus: "CONFIRMED" } : item))
@@ -579,7 +588,7 @@ export function AgentShieldConsole() {
     }
     setAgents((current) => [...current, newAgent])
     setActiveAgentId(newAgent.id)
-    setAgentDraft({ name: "", purpose: "", maxTransaction: "25", dailyBudget: "100" })
+    setAgentDraft({ name: "", purpose: "", maxTransaction: "", dailyBudget: "" })
     setAgentFormError("")
     setShowAgentForm(false)
     setTab("agents")

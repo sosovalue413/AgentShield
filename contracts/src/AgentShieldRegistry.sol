@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 /// @title AgentShieldRegistry
 /// @notice Owner-controlled agent policies and immutable security decision events.
 contract AgentShieldRegistry {
+    uint16 public constant VERSION = 2;
     uint8 public constant BLOCK_RISK_THRESHOLD = 70;
 
     struct Policy {
@@ -17,6 +18,7 @@ contract AgentShieldRegistry {
 
     mapping(bytes32 agentId => Policy policy) public policies;
     mapping(bytes32 agentId => mapping(address protocol => bool allowed)) public allowedProtocols;
+    mapping(bytes32 decisionId => bool recorded) public decisionRecorded;
 
     event AgentRegistered(
         bytes32 indexed agentId,
@@ -35,6 +37,7 @@ contract AgentShieldRegistry {
         bytes32 indexed decisionId,
         bytes32 indexed agentId,
         address indexed destination,
+        address protocol,
         uint256 amount,
         uint8 risk,
         bool allowed,
@@ -46,6 +49,9 @@ contract AgentShieldRegistry {
     error NotAgentOwner();
     error InvalidPolicy();
     error InvalidRisk();
+    error InvalidDecision();
+    error InvalidAddress();
+    error DecisionAlreadyRecorded();
 
     modifier onlyAgentOwner(bytes32 agentId) {
         address policyOwner = policies[agentId].owner;
@@ -85,6 +91,7 @@ contract AgentShieldRegistry {
     }
 
     function setProtocolAllowed(bytes32 agentId, address protocol, bool allowed) external onlyAgentOwner(agentId) {
+        if (protocol == address(0)) revert InvalidAddress();
         allowedProtocols[agentId][protocol] = allowed;
         emit ProtocolPermissionUpdated(agentId, protocol, allowed);
     }
@@ -113,6 +120,10 @@ contract AgentShieldRegistry {
         bytes32 reportHash
     ) external onlyAgentOwner(agentId) returns (bool allowed) {
         if (risk > 100) revert InvalidRisk();
+        if (decisionId == bytes32(0) || reportHash == bytes32(0)) revert InvalidDecision();
+        if (destination == address(0) || protocol == address(0)) revert InvalidAddress();
+        if (decisionRecorded[decisionId]) revert DecisionAlreadyRecorded();
+        decisionRecorded[decisionId] = true;
         Policy storage policy = policies[agentId];
         uint64 today = uint64(block.timestamp / 1 days);
         if (policy.spendingDay != today) {
@@ -123,6 +134,6 @@ contract AgentShieldRegistry {
         allowed = previewDecision(agentId, protocol, amount, risk);
         if (allowed) policy.spentToday += uint128(amount);
 
-        emit DecisionRecorded(decisionId, agentId, destination, amount, risk, allowed, reportHash);
+        emit DecisionRecorded(decisionId, agentId, destination, protocol, amount, risk, allowed, reportHash);
     }
 }

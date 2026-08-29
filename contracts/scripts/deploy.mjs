@@ -1,9 +1,16 @@
 import { ContractFactory, JsonRpcProvider, Wallet, formatEther } from "ethers"
+import { createInterface } from "node:readline/promises"
 import { compileContract } from "./compile.mjs"
 
 const EXPECTED_CHAIN_ID = 16602n
 const RPC_URL = process.env.RPC_URL || "https://evmrpc-testnet.0g.ai"
-const rawPrivateKey = process.env.PRIVATE_KEY?.trim()
+let rawPrivateKey = process.env.PRIVATE_KEY?.trim()
+
+if (!rawPrivateKey) {
+  const prompt = createInterface({ input: process.stdin, output: process.stderr, terminal: false })
+  rawPrivateKey = (await prompt.question("Private key (input is not stored): ")).trim()
+  prompt.close()
+}
 
 if (!rawPrivateKey || !/^(0x)?[0-9a-fA-F]{64}$/.test(rawPrivateKey)) {
   throw new Error("Set a valid PRIVATE_KEY in the process environment. Do not commit it to a file.")

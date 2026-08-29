@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import ganache from "ganache"
-import { BrowserProvider, ContractFactory, id, parseUnits, ZeroHash } from "ethers"
+import { BrowserProvider, ContractFactory, id, parseUnits, ZeroAddress } from "ethers"
 import { compileContract } from "../scripts/compile.mjs"
 
 async function deployFixture() {
@@ -65,7 +65,7 @@ test("records allowed decisions and consumes the daily budget", async () => {
     const protocol = await stranger.getAddress()
     await (await registry.registerAgent(agentId, 25n, 30n)).wait()
     await (await registry.setProtocolAllowed(agentId, protocol, true)).wait()
-    await (await registry.recordDecision(id("decision-1"), agentId, protocol, protocol, 20n, 10, ZeroHash)).wait()
+    await (await registry.recordDecision(id("decision-1"), agentId, protocol, protocol, 20n, 10, id("report-1"))).wait()
     assert.equal((await registry.policies(agentId)).spentToday, 20n)
     assert.equal(await registry.previewDecision(agentId, protocol, 11n, 10), false)
   } finally {
@@ -80,8 +80,28 @@ test("records blocked decisions without consuming budget", async () => {
     const protocol = await stranger.getAddress()
     await (await registry.registerAgent(agentId, 25n, 100n)).wait()
     await (await registry.setProtocolAllowed(agentId, protocol, true)).wait()
-    await (await registry.recordDecision(id("decision-blocked"), agentId, protocol, protocol, 5n, 90, ZeroHash)).wait()
+    await (await registry.recordDecision(id("decision-blocked"), agentId, protocol, protocol, 5n, 90, id("report-blocked"))).wait()
     assert.equal((await registry.policies(agentId)).spentToday, 0n)
+  } finally {
+    await eip1193.disconnect()
+  }
+})
+
+test("rejects duplicate decisions and zero-address protocol permissions", async () => {
+  const { eip1193, registry, owner } = await deployFixture()
+  try {
+    const agentId = id("replay-protected-agent")
+    const decisionId = id("unique-decision")
+    const ownerAddress = await owner.getAddress()
+    await (await registry.registerAgent(agentId, 10n, 20n)).wait()
+    await (await registry.setProtocolAllowed(agentId, ownerAddress, true)).wait()
+
+    await (await registry.recordDecision(decisionId, agentId, ownerAddress, ownerAddress, 1n, 5, id("report"))).wait()
+    await assert.rejects(async () => (await registry.recordDecision(decisionId, agentId, ownerAddress, ownerAddress, 1n, 5, id("report"))).wait())
+    await assert.rejects(async () => (await registry.setProtocolAllowed(agentId, ZeroAddress, true)).wait())
+
+    assert.equal(await registry.decisionRecorded(decisionId), true)
+    assert.equal((await registry.policies(agentId)).spentToday, 1n)
   } finally {
     await eip1193.disconnect()
   }
