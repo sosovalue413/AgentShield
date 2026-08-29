@@ -31,4 +31,5 @@ const version = await registry.VERSION()
 
 console.log(`AgentShieldRegistry: ${receipt.contractAddress}`)
 console.log(`Version: ${version}`)
+console.log(`VERSION selector: ${registry.interface.getFunction("VERSION").selector}`)
 console.log(`Explorer: https://chainscan-galileo.0g.ai/address/${receipt.contractAddress}`)

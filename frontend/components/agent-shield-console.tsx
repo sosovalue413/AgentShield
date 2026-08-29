@@ -471,7 +471,7 @@ export function AgentShieldConsole() {
         transaction = {
           from: walletAddress,
           to: destination,
-          value: input.asset === "0G" ? parseNativeValue(input.amount) : "0x0",
+          value: input.asset === "0G" ? parseNativeValue(input.amount || "0") : "0x0",
           data: input.calldata,
         }
       } else if (input.asset === "0G") {
