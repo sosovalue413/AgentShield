@@ -11,7 +11,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://frontend-teal-beta-ype2l2g0md.vercel.app'),
+  metadataBase: new URL('https://agentshield-0g.vercel.app'),
   applicationName: 'AgentShield',
   title: 'AgentShield | Security firewall for autonomous agents',
   description:

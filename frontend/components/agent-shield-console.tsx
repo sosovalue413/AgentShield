@@ -730,7 +730,7 @@ export function AgentShieldConsole() {
 
         {tab === "overview" && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease }}>
-            <SectionLabel index="01">// Console / overview</SectionLabel>
+            <SectionLabel index="01">Overview</SectionLabel>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Stat label="Agents protected" value={String(agents.length)} detail="Local registry" />
               <Stat label="Actions checked" value={String(checkedCount)} detail="Guard evaluations" />
@@ -757,7 +757,7 @@ export function AgentShieldConsole() {
 
         {tab === "agents" && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease }}>
-            <SectionLabel index="02">// Registry / protected agents</SectionLabel>
+            <SectionLabel index="02">Agents</SectionLabel>
             <div className="mb-6 flex flex-col gap-3 border-2 border-foreground bg-foreground p-5 text-background sm:flex-row sm:items-center sm:justify-between"><h2 className="text-2xl font-bold tracking-tight">Agent identities</h2><button onClick={() => setShowAgentForm((value) => !value)} className="flex items-center justify-center gap-2 bg-background px-4 py-3 text-[10px] font-bold uppercase tracking-[0.14em] text-foreground"><Plus size={14} /> Create agent</button></div>
             {showAgentForm && <AgentForm draft={agentDraft} setDraft={setAgentDraft} error={agentFormError} onSubmit={addAgent} onCancel={() => { setShowAgentForm(false); setAgentFormError("") }} />}
             <div className="grid gap-3 md:grid-cols-2">{agents.map((agent) => <AgentCard key={agent.id} agent={agent} expanded registered={registeredAgentIds.includes(agent.id)} registering={registeringAgentId === agent.id} onRegister={() => registerAgentOnchain(agent)} onSelect={() => { setActiveAgentId(agent.id); setTab("guard") }} />)}{!agents.length && <div className="md:col-span-2"><EmptyState title="Create your first agent" body="Set its budget, then run a guarded action." action="Create agent" onClick={() => setShowAgentForm(true)} /></div>}</div>
@@ -766,7 +766,7 @@ export function AgentShieldConsole() {
 
         {tab === "guard" && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease }}>
-            <SectionLabel index="03">// Firewall / evaluate action</SectionLabel>
+            <SectionLabel index="03">Run guard</SectionLabel>
             <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
               <section className="border-2 border-foreground bg-background p-5">
                 <div className="mb-5 flex items-center justify-between"><h2 className="text-2xl font-bold tracking-tight">Review an action</h2><Sparkles size={20} className="text-[#ea580c]" /></div>
@@ -799,14 +799,14 @@ export function AgentShieldConsole() {
 
         {tab === "policies" && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease }}>
-            <SectionLabel index="04">// Policy engine / enforcement</SectionLabel>
+            <SectionLabel index="04">Policies</SectionLabel>
             <div className="grid gap-3 md:grid-cols-2">{agents.map((agent) => <PolicyCard key={agent.id} agent={agent} registered={registeredAgentIds.includes(agent.id)} syncing={syncingPolicyId === agent.id} onSave={updateLocalPolicy} onSync={() => syncPolicyOnchain(agent)} />)}{!agents.length && <div className="md:col-span-2"><EmptyState title="No policies yet" body="Create an agent to configure transaction and daily spending limits." action="Create agent" onClick={() => { setShowAgentForm(true); setTab("agents") }} /></div>}</div>
           </motion.div>
         )}
 
         {tab === "activity" && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease }}>
-            <SectionLabel index="05">// Ledger / security history</SectionLabel>
+            <SectionLabel index="05">Activity</SectionLabel>
             <section className="border-2 border-foreground bg-background"><div className="flex flex-col gap-3 border-b-2 border-foreground px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="text-xl font-bold tracking-tight">Activity</h2><ClearWorkspaceControl onConfirm={clearWorkspace} /></div><div className="divide-y divide-border">{activity.map((item) => <ActivityRow key={item.id} item={item} detailed />)}{!activity.length && <EmptyState title="No activity yet" body={agents.length ? "Run a guard check to record a decision." : "Create an agent first."} action={agents.length ? "Run guard" : "Create agent"} onClick={() => agents.length ? setTab("guard") : (setShowAgentForm(true), setTab("agents"))} />}</div></section>
           </motion.div>
         )}

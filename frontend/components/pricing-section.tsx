@@ -47,7 +47,7 @@ function StatusLine() {
   return (
     <div className="flex items-center gap-2 text-[10px] tracking-widest text-muted-foreground uppercase font-mono">
       <span className="h-1.5 w-1.5 bg-[#ea580c]" />
-      <span>production surface: audited</span>
+      <span>Galileo testnet</span>
     </div>
   )
 }
@@ -77,7 +77,7 @@ const TIERS: Tier[] = [
     price: "READY",
     period: "",
     tag: null,
-    description: "Start with a local policy registry and a complete guard workflow.",
+    description: "Create agents and test the complete guard workflow locally.",
     features: [
       { text: "Unlimited local agents", included: true },
       { text: "Prompt injection checks", included: true },
@@ -95,7 +95,7 @@ const TIERS: Tier[] = [
     price: "LIVE",
     period: "GALILEO",
     tag: "DEPLOYED",
-    description: "Anchor agent ownership and spending policy on the live 0G testnet contract.",
+    description: "Anchor ownership and policy on the live 0G registry.",
     features: [
       { text: "Wallet-owned agent records", included: true },
       { text: "Maximum transaction limit", included: true },
@@ -113,7 +113,7 @@ const TIERS: Tier[] = [
     price: "SETUP",
     period: "",
     tag: null,
-    description: "Optional model-backed risk signals after a provider endpoint and model are configured.",
+    description: "Add model-backed signals after authentication and quotas are ready.",
     features: [
       { text: "Service URL required", included: true },
       { text: "API secret remains server-only", included: true },
@@ -291,9 +291,7 @@ export function PricingSection() {
           <h2 className="text-2xl lg:text-3xl font-mono font-bold tracking-tight uppercase text-foreground text-balance">
             Choose your protection mode
           </h2>
-          <p className="text-xs lg:text-sm font-mono text-muted-foreground leading-relaxed max-w-md">
-            Start locally, then connect the 0G modules that match your risk and audit requirements.
-          </p>
+          <p className="text-xs lg:text-sm font-mono text-muted-foreground leading-relaxed max-w-md">Start locally, then connect the 0G modules you need.</p>
         </div>
         <StatusLine />
       </motion.div>
@@ -305,19 +303,6 @@ export function PricingSection() {
         ))}
       </div>
 
-      {/* Bottom note */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ delay: 0.5, duration: 0.5, ease }}
-        className="flex items-center gap-3 mt-6"
-      >
-        <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
-          {"* Start on testnet. Keep the same policy contract when you move to production."}
-        </span>
-        <div className="flex-1 border-t border-border" />
-      </motion.div>
     </section>
   )
 }

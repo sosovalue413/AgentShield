@@ -11,7 +11,6 @@ export function HeroSection() {
   return (
     <section id="how-it-works" className="relative w-full px-6 pt-6 pb-12 lg:px-24 lg:pt-10 lg:pb-16">
       <div className="flex flex-col items-center text-center">
-        {/* Top headline: DEPLOY. SCALE. -- Geist Pixel Grid */}
         <motion.h1
           initial={{ opacity: 0, y: 30, filter: "blur(8px)" }}
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -21,7 +20,6 @@ export function HeroSection() {
           PROTECT. EXECUTE.
         </motion.h1>
 
-        {/* Central Workflow Diagram */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -31,7 +29,6 @@ export function HeroSection() {
           <WorkflowDiagram />
         </motion.div>
 
-        {/* Bottom headline: ROUTE. -- Geist Pixel Grid */}
         <motion.h1
           initial={{ opacity: 0, y: 30, filter: "blur(8px)" }}
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -42,17 +39,15 @@ export function HeroSection() {
           SAFELY.
         </motion.h1>
 
-        {/* Sub-headline */}
         <motion.p
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.45, ease }}
           className="text-xs lg:text-sm text-muted-foreground max-w-md mb-6 leading-relaxed font-mono"
         >
-          AgentShield is the policy firewall between your autonomous agents and the 0G network. Inspect intent, enforce budgets, and keep every decision verifiable.
+          A policy firewall for autonomous agents on 0G. Review intent, enforce limits, and approve transactions safely.
         </motion.p>
 
-        {/* CTA Button */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -71,7 +66,7 @@ export function HeroSection() {
                 <ArrowRight size={16} strokeWidth={2} className="text-background" />
               </motion.span>
             </span>
-            <span className="px-5 py-2.5">Open the security console</span>
+            <span className="px-5 py-2.5">Open console</span>
           </Link>
         </motion.div>
       </div>

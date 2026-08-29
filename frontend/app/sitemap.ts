@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next"
 
-const baseUrl = "https://frontend-teal-beta-ype2l2g0md.vercel.app"
+const baseUrl = "https://agentshield-0g.vercel.app"
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return ["", "/console", "/privacy", "/terms"].map((path) => ({

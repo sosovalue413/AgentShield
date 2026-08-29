@@ -1,105 +1,129 @@
 # AgentShield
 
-AgentShield is a policy and transaction firewall for autonomous AI agents. It inspects an agent's intended action, applies spending and protocol rules, detects common prompt-injection patterns, performs an EVM preflight simulation, and only then asks the connected wallet to submit an allowed transaction.
+AgentShield is a transaction firewall for autonomous AI agents on 0G. It checks an agent's instruction and proposed transaction before the connected wallet can submit it.
 
-> Give AI agents wallets, not unlimited trust.
+The goal is simple: give agents useful wallet access without giving them unlimited trust.
 
-## Live deployment
+## Live app
 
-- Web app: https://frontend-teal-beta-ype2l2g0md.vercel.app
-- Security console: https://frontend-teal-beta-ype2l2g0md.vercel.app/console
-- Network: 0G Galileo Testnet, chain ID `16602`
-- Registry contract: [`0x824D227cd9a024d29c166EC9e1D6ABb92aB7dCF4`](https://chainscan-galileo.0g.ai/address/0x824D227cd9a024d29c166EC9e1D6ABb92aB7dCF4)
-- Deployment transaction: [`0x26f7d1a4100855ba2f7fe2cdd129e1a8844880178688fd604490b9093d4cff43`](https://chainscan-galileo.0g.ai/tx/0x26f7d1a4100855ba2f7fe2cdd129e1a8844880178688fd604490b9093d4cff43)
+- App: https://agentshield-0g.vercel.app
+- Security console: https://agentshield-0g.vercel.app/console
+- Network: 0G Galileo Testnet (`16602`)
+- Registry: [`0x824D227cd9a024d29c166EC9e1D6ABb92aB7dCF4`](https://chainscan-galileo.0g.ai/address/0x824D227cd9a024d29c166EC9e1D6ABb92aB7dCF4)
+- Contract deployment: [`0x26f7d1a4100855ba2f7fe2cdd129e1a8844880178688fd604490b9093d4cff43`](https://chainscan-galileo.0g.ai/tx/0x26f7d1a4100855ba2f7fe2cdd129e1a8844880178688fd604490b9093d4cff43)
 
-## What the product does
+## What AgentShield does
 
-1. The user creates an agent identity and assigns maximum-transaction, daily-budget, active/paused, and protocol-allowlist rules.
-2. The identity can be registered in the AgentShield smart contract with a wallet signature.
-3. Local policy changes can be synchronized to that onchain identity.
-4. An agent action supplies its asset, amount, destination, protocol, calldata, and originating instruction.
-5. AgentShield evaluates address validity, limits, daily usage, protocol access, token approvals, calldata, and prompt-injection patterns.
-6. Blocked actions never reach the wallet. Review actions require explicit one-time human approval.
-7. Allowed actions receive an `eth_estimateGas` preflight. A reverting request is stopped before `eth_sendTransaction`.
-8. Submitted transactions are tracked on ChainScan. Confirmed spend updates the local daily budget and automatically rolls over on a new UTC day.
+AgentShield lets a wallet owner create protected agent identities and define what each agent may do.
 
-## Current feature status
+For every requested action it checks:
 
-| Capability | Status | Notes |
-| --- | --- | --- |
-| Wallet connection and 0G network switching | Live | Supports injected EIP-1193 wallets such as MetaMask and Rabby. |
-| Agent identities | Live | Real user-created records; no seeded production agents. |
-| Local policy engine | Live | Budgets, pause/resume, protocol allowlist, approval and prompt checks. |
-| 0G registry | Live | Registration, registry-state restoration, and owner-signed policy updates. |
-| Native 0G transfers | Live | Guarded and simulated before wallet submission. |
-| ERC-20 transfers and approvals | Live | Encodes standard `transfer` and `approve` calldata. |
-| Arbitrary contract calls | Live | Requires valid calldata and passes wallet preflight simulation. |
-| Human approval | Live | Review decisions can be approved once; blocked decisions cannot be overridden. |
-| Security history | Live locally | Stored in browser storage with confirmed transaction hashes. |
-| 0G Compute Router | Configured, not public | The server credential and verified testnet model are configured. A metered public inference endpoint is intentionally withheld until authentication and quotas exist. |
-| 0G Storage and Agentic ID | Planned adapters | The UI does not claim these adapters are active. |
+- whether the policy is active;
+- the destination and contract addresses;
+- the maximum amount per transaction;
+- the remaining daily budget;
+- the approved protocol list;
+- token transfer and approval restrictions;
+- contract calldata validity;
+- common prompt-injection patterns in the agent instruction.
 
-## Architecture
+The result is one of three decisions:
+
+| Decision | Meaning |
+| --- | --- |
+| `ALLOWED` | The action passes policy and can continue to simulation. |
+| `REVIEW` | The wallet owner must approve this action once. |
+| `BLOCKED` | The wallet request is suppressed. |
+
+## How it works
+
+1. Create an agent and assign its transaction limit, daily budget, status, and approved protocols.
+2. Optionally register that identity in the AgentShield registry on 0G.
+3. Enter the action the agent wants to perform.
+4. AgentShield evaluates the instruction and transaction against the agent policy.
+5. Allowed actions run an EVM preflight simulation with `eth_estimateGas`.
+6. Only a successful simulation is sent to the connected wallet.
+7. Confirmed transaction hashes and local guard decisions appear in the activity view.
 
 ```text
-Agent intent
-    |
-    v
-Deterministic guard
-  - input validation
-  - prompt-injection patterns
-  - protocol allowlist
-  - transaction and daily limits
-  - approval restrictions
-    |
-    +---- BLOCKED ----------> wallet request suppressed
-    |
-    +---- REVIEW -----------> explicit human approval
-    |
-    v
-EVM preflight simulation (`eth_estimateGas`)
-    |
-    +---- revert -----------> wallet request suppressed
-    |
-    v
-Injected wallet (`eth_sendTransaction`)
-    |
-    v
-0G Galileo + ChainScan transaction history
-
-Agent policy ----------------> AgentShieldRegistry on 0G
+Agent instruction + transaction
+              |
+              v
+      AgentShield guard
+      - input validation
+      - intent checks
+      - protocol policy
+      - spending limits
+              |
+       +------+------+
+       |             |
+    BLOCKED      ALLOWED / REVIEW
+       |             |
+  no wallet call     v
+                EVM simulation
+                     |
+                wallet approval
+                     |
+                     v
+               0G Galileo
 ```
 
-The web application is a client-side security console. The registry provides public policy ownership and configuration records, but it is not a custody contract or smart-account module. A user can always bypass a browser application and use their wallet directly. Production custody enforcement would require a smart-account module or contract wallet that makes AgentShield policy checks mandatory.
+## Features
 
-## Security model
+### Available now
 
-- Private keys are never committed or placed in browser environment variables.
-- `ZG_API_SECRET` is server-only and must never use a `NEXT_PUBLIC_` prefix.
-- Contract deployment refuses networks other than chain `16602`.
-- A failed transaction simulation stops execution before the wallet request.
-- Blocked guard decisions cannot be manually overridden.
-- Browser records are local convenience data, not immutable evidence.
-- Onchain transactions and registry records are public and permanent.
-- Testnet funds only: this release targets Galileo and has not received a third-party smart-contract audit.
+- Injected wallet connection for MetaMask, Rabby, and compatible EIP-1193 wallets.
+- Automatic 0G Galileo network switching.
+- User-created agent identities with no seeded production data.
+- Editable local policies with pause and resume controls.
+- Protocol allowlists and daily budget rollover.
+- Guarded native 0G, ERC-20 transfer, token approval, and contract-call flows.
+- Prompt-injection checks and one-time human review.
+- Transaction simulation before submission.
+- Local activity history with confirmed ChainScan transaction links.
+- Onchain agent registration and owner-signed policy synchronization.
+- Responsive, keyboard-accessible web interface.
 
-## Repository layout
+### Deliberately not exposed yet
+
+- Public 0G Compute inference. The Router credential is configured server-side, but a public metered endpoint needs authentication and quotas first.
+- Durable cloud accounts and multi-device sync.
+- 0G Storage report anchoring.
+- Mainnet custody enforcement.
+
+## Architecture and trust boundaries
+
+The web app contains the local policy engine and wallet flow. The deployed registry stores public agent ownership and policy configuration on 0G.
+
+The current registry is not a custody contract. A wallet owner can bypass a browser application and send a transaction directly. Enforcing policy at the account level requires an audited smart-account module or contract wallet.
+
+Security rules:
+
+- private keys must never be committed or exposed to the browser;
+- `ZG_API_SECRET` stays server-side and must not use a `NEXT_PUBLIC_` prefix;
+- blocked actions cannot be manually overridden;
+- failed simulations never reach `eth_sendTransaction`;
+- browser history is local convenience data, not immutable evidence;
+- onchain transactions and registry records are public and permanent;
+- this release is for testnet funds and has not received a third-party contract audit.
+
+## Project structure
 
 ```text
 AgentShield/
-├── project.md                  Original product brief and implementation status
+├── README.md
 ├── contracts/
 │   ├── src/AgentShieldRegistry.sol
-│   └── scripts/                Compiler and testnet deployment scripts
+│   └── scripts/
 └── frontend/
-    ├── app/                    Next.js routes, metadata, favicon and social image
-    ├── components/             Landing page and security console
-    └── public/                 Local visual assets
+    ├── app/
+    ├── components/
+    └── public/
 ```
 
-## Local development
+## Run locally
 
-Requirements: Node.js 22+, pnpm, and an injected EVM wallet for transaction flows.
+Requirements: Node.js 22+, pnpm, and an injected EVM wallet for wallet flows.
 
 ```bash
 cd frontend
@@ -107,9 +131,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:3000`.
-
-Create `frontend/.env.local` from `frontend/.env.example`:
+Copy `frontend/.env.example` to `frontend/.env.local` and configure:
 
 ```dotenv
 NEXT_PUBLIC_AGENTSHIELD_REGISTRY=0x...
@@ -128,17 +150,16 @@ npm install
 npm run compile
 ```
 
-Deployment reads the private key from the current process environment and checks the network before sending anything:
+To deploy on Galileo, provide secrets only to the current process:
 
-```bash
+```powershell
 $env:RPC_URL = "https://evmrpc-testnet.0g.ai"
 $env:PRIVATE_KEY = "<private-key-from-your-secret-manager>"
 npm run deploy:testnet
+Remove-Item Env:PRIVATE_KEY
 ```
 
-Set the private key only for the current shell process, never commit it, and clear the environment variable after deployment.
-
-Do not put a private key in `.env`, shell history, source code, or deployment logs.
+Never place a private key in source code, a committed `.env` file, shell history, or deployment logs.
 
 ## Release checks
 
@@ -153,16 +174,17 @@ npm run compile
 npm audit --omit=dev
 ```
 
-The final release is also checked in a real browser at desktop and narrow-mobile widths for navigation, empty states, agent creation, policy editing, guard decisions, responsive overflow, and runtime errors.
+Before deployment, also test onboarding, policy editing, allowed and blocked decisions, narrow mobile layouts, keyboard navigation, and production runtime logs.
 
-## Next production milestones
+## What we will improve next
 
-1. Add authenticated accounts and durable encrypted storage for multi-device workspaces.
-2. Add per-user quotas before exposing metered 0G Compute inference.
-3. Add 0G Storage report anchoring and compare report hashes onchain.
-4. Add an audited smart-account or contract-wallet enforcement module.
-5. Complete an independent Solidity audit before mainnet use.
+1. Add authenticated workspaces and encrypted multi-device storage.
+2. Add request quotas and abuse protection for 0G Compute signals.
+3. Anchor security report hashes in 0G Storage.
+4. Add richer protocol adapters and decoded transaction previews.
+5. Build an audited smart-account enforcement module.
+6. Complete independent smart-contract and application security audits before mainnet.
 
-## Safety notice
+## Safety
 
-AgentShield is security tooling, not a guarantee that an action is safe. Review every wallet request and use test funds on the Galileo deployment.
+AgentShield reduces transaction risk; it cannot guarantee that an action is safe. Review every wallet request and use test funds on the Galileo deployment.

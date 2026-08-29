@@ -99,7 +99,6 @@ export function AboutSection() {
 
       {/* Two-column layout */}
       <div className="flex flex-col lg:flex-row gap-0 border-2 border-foreground">
-        {/* Left: Image */}
         <motion.div
           initial={{ opacity: 0, x: -30, filter: "blur(6px)" }}
           whileInView={{ opacity: 1, x: 0, filter: "blur(0px)" }}
@@ -107,16 +106,6 @@ export function AboutSection() {
           transition={{ duration: 0.7, ease }}
           className="relative w-full lg:w-1/2 min-h-[300px] lg:min-h-[500px] border-b-2 lg:border-b-0 lg:border-r-2 border-foreground overflow-hidden bg-foreground"
         >
-          {/* Image label overlay */}
-          <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2 bg-foreground/80 backdrop-blur-sm">
-            <span className="text-[10px] tracking-[0.2em] uppercase text-background/60 font-mono">
-              RENDER: agentshield_architecture.obj
-            </span>
-            <span className="text-[10px] tracking-[0.2em] uppercase text-[#ea580c] font-mono">
-              LIVE
-            </span>
-          </div>
-
           <Image
             src="/images/about-isometric.jpg"
             alt="Isometric view of AI infrastructure with server racks and data pipelines"
@@ -126,15 +115,6 @@ export function AboutSection() {
             priority
           />
 
-          {/* Bottom image coordinates */}
-          <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2 bg-foreground/80 backdrop-blur-sm">
-            <span className="text-[10px] tracking-[0.2em] uppercase text-background/40 font-mono">
-              {"CAM: -45deg / ISO"}
-            </span>
-            <span className="text-[10px] tracking-[0.2em] uppercase text-background/40 font-mono">
-              {"RES: 2048x2048"}
-            </span>
-          </div>
         </motion.div>
 
         {/* Right: Content */}
@@ -145,13 +125,12 @@ export function AboutSection() {
           transition={{ duration: 0.7, delay: 0.1, ease }}
           className="flex flex-col w-full lg:w-1/2"
         >
-          {/* Header bar */}
           <div className="flex items-center justify-between px-5 py-3 border-b-2 border-foreground">
             <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
-              MANIFEST.md
+              AGENTSHIELD
             </span>
             <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground font-mono">
-              v3.1.0
+              0G GALILEO
             </span>
           </div>
 
@@ -179,13 +158,8 @@ export function AboutSection() {
               >
                 <p className="text-xs lg:text-sm font-mono text-muted-foreground leading-relaxed">
                   AgentShield sits between an agent's intent and its wallet. It
-                  evaluates destination risk, spending policy, and prompt intent
-                  before a transaction can reach the 0G Chain.
-                </p>
-                <p className="text-xs lg:text-sm font-mono text-muted-foreground leading-relaxed">
-                  Security decisions stay inspectable: the policy result, model
-                  signal, and execution hash travel together as one audit trail.
-                  Larger reports can be pinned to 0G Storage when you are ready.
+                  checks the destination, spending policy, protocol, and instruction
+                  before a transaction reaches 0G.
                 </p>
               </motion.div>
 
