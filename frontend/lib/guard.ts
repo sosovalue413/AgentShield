@@ -102,6 +102,13 @@ export function evaluateGuard(form: GuardForm, agent: AgentPolicyInput): GuardEv
     forceBlock = true
     reasons.push("Transfer amount must be greater than zero")
   }
+  try {
+    parseTokenValue(form.amount || "0", 6)
+  } catch {
+    risk += 80
+    forceBlock = true
+    reasons.push("Policy amount supports up to 6 decimal places")
+  }
   if (amount > agent.maxTransaction) {
     risk += 28
     reasons.push(`Amount exceeds ${agent.name}'s ${agent.maxTransaction} ${form.asset} limit`)

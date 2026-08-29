@@ -192,6 +192,8 @@ export function AgentShieldConsole() {
             active: agent.active ?? true,
             spendingDay: agent.spendingDay ?? today,
             usedToday: !agent.spendingDay || agent.spendingDay === today ? agent.usedToday : 0,
+            syncedProtocols: agent.syncedProtocols ?? [],
+            onchainPolicySynced: agent.onchainPolicySynced ?? false,
           }))
           setAgents(migratedAgents)
           setActiveAgentId(migratedAgents[0].id)
@@ -209,6 +211,17 @@ export function AgentShieldConsole() {
     if (!hydrated) return
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ agents, activity }))
   }, [agents, activity, hydrated])
+
+  useEffect(() => {
+    if (!hydrated) return
+    const resetExpiredBudget = () => {
+      const today = currentSpendingDay()
+      setAgents((current) => current.map((agent) => agent.spendingDay === today ? agent : { ...agent, usedToday: 0, spendingDay: today }))
+    }
+    resetExpiredBudget()
+    const timer = window.setInterval(resetExpiredBudget, 60_000)
+    return () => window.clearInterval(timer)
+  }, [hydrated])
 
   useEffect(() => {
     const provider = window.ethereum
@@ -235,6 +248,8 @@ export function AgentShieldConsole() {
     }
   }, [])
 
+  const agentIdsKey = agents.map((agent) => agent.id).join("|")
+
   useEffect(() => {
     if (!hydrated || !REGISTRY_ADDRESS || !agents.length) {
       if (!agents.length) setRegisteredAgentIds([])
@@ -248,16 +263,46 @@ export function AgentShieldConsole() {
         const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, provider)
         const entries = await Promise.all(agents.map(async (agent) => {
           const policy = await registry.policies(id(agent.id))
-          return policy.owner !== ZeroAddress ? agent.id : null
+          if (policy.owner === ZeroAddress) return null
+          const protocolChecks = await Promise.all(agent.protocols.map((protocol) => registry.allowedProtocols(id(agent.id), protocol)))
+          const maxTransaction = Number(formatUnits(policy.maxTransaction, 6))
+          const dailyBudget = Number(formatUnits(policy.dailyBudget, 6))
+          const currentChainDay = BigInt(Math.floor(Date.now() / 86_400_000))
+          const usedToday = policy.spendingDay === currentChainDay ? Number(formatUnits(policy.spentToday, 6)) : 0
+          const limitsMatch = agent.maxTransaction === maxTransaction && agent.dailyBudget === dailyBudget && agent.active === policy.active
+          return {
+            agentId: agent.id,
+            owner: String(policy.owner),
+            maxTransaction,
+            dailyBudget,
+            usedToday,
+            active: Boolean(policy.active),
+            protocolsSynced: protocolChecks.every(Boolean),
+            limitsMatch,
+          }
         }))
-        if (!cancelled) setRegisteredAgentIds(entries.filter((entry): entry is string => Boolean(entry)))
+        if (!cancelled) {
+          const registered = entries.filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+          setRegisteredAgentIds(registered.map((entry) => entry.agentId))
+          setAgents((current) => current.map((agent) => {
+            const onchain = registered.find((entry) => entry.agentId === agent.id)
+            if (!onchain) return { ...agent, onchainPolicySynced: false }
+            return {
+              ...agent,
+              wallet: shortAddress(onchain.owner),
+              usedToday: onchain.usedToday,
+              spendingDay: currentSpendingDay(),
+              onchainPolicySynced: onchain.limitsMatch && onchain.protocolsSynced,
+            }
+          }))
+        }
       } catch {
         if (!cancelled) setWalletMessage("Could not refresh registry state. Local policies are still available.")
       }
     }
     void restoreOnchainState()
     return () => { cancelled = true }
-  }, [agents, hydrated])
+  }, [agentIdsKey, hydrated])
 
   const connectWallet = async () => {
     setWalletMessage("")
@@ -313,12 +358,12 @@ export function AgentShieldConsole() {
 
   const runGuard = () => {
     if (!activeAgent) return
-    const result = guardTransaction(guardForm, activeAgent)
+    const result = evaluateGuard(guardForm, activeAgent)
     const activityId = `evt-${Date.now()}`
     setGuardResult({ ...result, activityId, input: guardForm })
     const activityItem: ActivityItem = {
       id: activityId,
-      createdAt: "Just now",
+      createdAt: new Date().toISOString(),
       agent: activeAgent.name,
       action: guardForm.action === "approve" ? "Approve" : guardForm.action === "contract" ? "Contract call" : "Transfer",
       amount: Number(guardForm.amount) || 0,
@@ -327,6 +372,7 @@ export function AgentShieldConsole() {
       risk: result.risk,
       decision: result.decision,
       reasons: result.reasons,
+      txStatus: "LOCAL",
     }
     setActivity((current) => [activityItem, ...current].slice(0, 30))
     setAgents((current) => current.map((agent) => agent.id === activeAgent.id
